@@ -1,0 +1,113 @@
+﻿@implements IAsyncDisposable
+@inject IJSRuntime JS
+
+<div id="scene" class="scene"></div>
+
+<div class="version">v@(AppVersion)</div>
+
+@if (state == "playing" || state == "levelup")
+{
+    <div class="hud">
+        <div>Niveau @level</div>
+        <div>Vijanden: @enemies</div>
+        <div class="health"><div class="health-bar" style="@($"width:{health}%")"></div></div>
+    </div>
+    <div class="crosshair"></div>
+}
+
+<canvas id="minimap" class="minimap" width="160" height="160"></canvas>
+
+<div class="touch">
+    <div class="pad">
+        <span></span><button data-key="KeyW">▲</button><span></span>
+        <button data-key="KeyA">◀</button><button data-key="KeyS">▼</button><button data-key="KeyD">▶</button>
+    </div>
+    <button class="fire" data-key="Space">VUUR</button>
+</div>
+
+@switch (state)
+{
+    case "loading":
+        <div class="overlay"><h1>TANK BATTLE</h1><div>Laden…</div></div>
+        break;
+    case "start":
+        <div class="overlay">
+            <h1>TANK BATTLE</h1>
+            <div class="controls">
+                Vernietig alle vijandelijke tanks. Elk niveau komt er een tank bij.<br />
+                W/A/S/D of pijltjes: rijden &nbsp;•&nbsp; Spatie of klik: vuren
+            </div>
+            <button @onclick="StartGame">Start</button>
+        </div>
+        break;
+    case "levelup":
+        <div class="overlay banner"><h1>Niveau @level voltooid!</h1><div>Volgend niveau: @(level + 1) tanks</div></div>
+        break;
+    case "gameover":
+        <div class="overlay">
+            <h1>VERNIETIGD</h1>
+            <div class="controls">Je bent uitgeschakeld op niveau @level.</div>
+            <button @onclick="StartGame">Opnieuw</button>
+        </div>
+        break;
+}
+
+@code {
+    private static readonly string AppVersion = GetVersion();
+    private DotNetObjectReference<TankGame>? selfRef;
+    private IJSObjectReference? module;
+    private string state = "loading";
+    private int level = 1;
+    private int enemies;
+    private int health = 100;
+
+    private static string GetVersion()
+    {
+        var info = typeof(TankGame).Assembly
+            .GetCustomAttribute<AssemblyInformationalVersionAttribute>()?.InformationalVersion ?? "0.0.0";
+        var plus = info.IndexOf('+');
+        return plus >= 0 ? info[..plus] : info;
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!firstRender) return;
+
+        // Start background update check (GitHub Pages)
+        await JS.InvokeVoidAsync("tbUpdater.start", AppVersion);
+
+        selfRef = DotNetObjectReference.Create(this);
+        // Version query busts the browser/CDN cache for the game script
+        module = await JS.InvokeAsync<IJSObjectReference>("import", $"./js/game.js?v={AppVersion}");
+        await module.InvokeVoidAsync("init", "scene", "minimap", selfRef);
+
+        state = "start";
+        StateHasChanged();
+    }
+
+    private async Task StartGame()
+    {
+        if (module is not null)
+            await module.InvokeVoidAsync("startGame");
+    }
+
+    [JSInvokable]
+    public void OnStatus(string newState, int newLevel, int enemiesLeft, int newHealth)
+    {
+        state = newState;
+        level = newLevel;
+        enemies = enemiesLeft;
+        health = newHealth;
+        StateHasChanged();
+    }
+
+    public async ValueTask DisposeAsync()
+    {
+        if (module is not null)
+        {
+            try { await module.DisposeAsync(); }
+            catch (JSDisconnectedException) { }
+        }
+        selfRef?.Dispose();
+    }
+}
