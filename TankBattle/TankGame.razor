@@ -5,6 +5,8 @@
 
 <div class="version">v@(AppVersion)</div>
 
+<div class="rotate"><span>⟳</span>Draai je telefoon naar liggend</div>
+
 @if (state == "playing" || state == "levelup")
 {
     <div class="hud">
@@ -35,7 +37,8 @@
             <h1>TANK BATTLE</h1>
             <div class="controls">
                 Vernietig alle vijandelijke tanks. Elk niveau komt er een tank bij.<br />
-                W/A/S/D of pijltjes: rijden &nbsp;•&nbsp; Spatie of klik: vuren
+                W/A/S/D of pijltjes: rijden &nbsp;•&nbsp; Spatie of klik: vuren<br />
+                Telefoon: pijlknoppen links, VUUR rechts
             </div>
             <button @onclick="StartGame">Start</button>
         </div>

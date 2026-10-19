@@ -537,7 +537,20 @@ function startLevel() {
     report();
 }
 
+const IS_TOUCH = window.matchMedia('(pointer: coarse)').matches;
+
+function enterMobileMode() {
+    // Fullscreen + landscape lock where supported (not on iPhone Safari)
+    if (!IS_TOUCH || document.fullscreenElement) return;
+    const el = document.documentElement;
+    if (!el.requestFullscreen) return;
+    el.requestFullscreen({ navigationUI: 'hide' })
+        .then(() => screen.orientation?.lock?.('landscape'))
+        .catch(() => { });
+}
+
 export function startGame() {
+    enterMobileMode();
     initAudio();
     level = 1;
     startLevel();
@@ -651,6 +664,8 @@ function loop(now) {
 function onResize() {
     const w = container.clientWidth, h = container.clientHeight;
     renderer.setSize(w, h);
+    // Wider view on narrow/small screens
+    camera.fov = w < h ? 85 : (h < 500 ? 75 : 70);
     camera.aspect = w / h;
     camera.updateProjectionMatrix();
 }
@@ -666,6 +681,9 @@ function bindInput() {
     window.addEventListener('keyup', e => { keys[e.code] = false; });
     window.addEventListener('blur', () => { for (const k in keys) keys[k] = false; });
     window.addEventListener('pointerdown', initAudio);
+    window.addEventListener('contextmenu', e => e.preventDefault());
+    // Fallback resize: some mobile browsers skip 'resize' on rotation
+    window.addEventListener('orientationchange', () => setTimeout(onResize, 200));
     renderer.domElement.addEventListener('pointerdown', e => {
         if (e.pointerType === 'mouse' && state === 'playing') fireRequested = true;
     });
@@ -684,7 +702,8 @@ export function init(containerId, minimapId, ref) {
     mctx = minimap.getContext('2d');
 
     renderer = new THREE.WebGLRenderer({ antialias: true });
-    renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+    // Lower resolution on phones for smooth framerate
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio, IS_TOUCH ? 1.5 : 2));
     container.appendChild(renderer.domElement);
 
     scene = new THREE.Scene();
